@@ -2,6 +2,7 @@ import os
 import re
 import secrets
 import sqlite3
+from datetime import datetime
 
 from flask import Flask, flash, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash
@@ -29,6 +30,35 @@ def no_store_auth_pages(response):
     if request.endpoint in ("login", "register"):
         response.headers["Cache-Control"] = "no-store"
     return response
+
+
+# ------------------------------------------------------------------ #
+# Template filters                                                    #
+# ------------------------------------------------------------------ #
+
+@app.template_filter("inr")
+def format_inr(amount):
+    """Format a number as rupees with Indian digit grouping: 124500 -> ₹1,24,500."""
+    n = int(round(amount))
+    sign = "-" if n < 0 else ""
+    digits = str(abs(n))
+    if len(digits) > 3:
+        head, tail = digits[:-3], digits[-3:]
+        groups = []
+        while len(head) > 2:
+            groups.insert(0, head[-2:])
+            head = head[:-2]
+        if head:
+            groups.insert(0, head)
+        digits = ",".join(groups) + "," + tail
+    return f"{sign}₹{digits}"
+
+
+@app.template_filter("short_date")
+def format_short_date(iso_date):
+    """Turn a stored ISO date ('2026-11-15') into '15 Nov'."""
+    d = datetime.strptime(iso_date, "%Y-%m-%d")
+    return f"{d.day} {d.strftime('%b')}"
 
 
 # ------------------------------------------------------------------ #
@@ -140,7 +170,54 @@ def logout():
 
 @app.route("/profile")
 def profile():
-    return "Profile page — coming in Step 4"
+    if not session.get("user_id"):
+        return redirect(url_for("login"))
+
+    # Step 4 is UI-only: hardcoded data shaped like the rows Step 5's
+    # queries will return, so that step only swaps the data source.
+    user = {
+        "name": "Demo User",
+        "email": "demo@spendly.com",
+        "member_since": "January 2026",
+        "initials": "DU",
+    }
+
+    # Newest first, matching the demo user's seed expenses.
+    transactions = [
+        {"date": "2026-11-15", "description": "Dinner out", "category": "Food", "amount": 780.00},
+        {"date": "2026-11-13", "description": "Gift wrap", "category": "Other", "amount": 300.00},
+        {"date": "2026-11-11", "description": "Shoes", "category": "Shopping", "amount": 2299.00},
+        {"date": "2026-11-09", "description": "Movie tickets", "category": "Entertainment", "amount": 499.00},
+        {"date": "2026-11-07", "description": "Pharmacy", "category": "Health", "amount": 600.00},
+        {"date": "2026-11-05", "description": "Electricity bill", "category": "Bills", "amount": 1850.00},
+        {"date": "2026-11-03", "description": "Metro card top-up", "category": "Transport", "amount": 120.00},
+        {"date": "2026-11-01", "description": "Groceries", "category": "Food", "amount": 450.00},
+    ]
+
+    # Derive totals from the rows so the stats and breakdown always agree.
+    total_spent = sum(tx["amount"] for tx in transactions)
+    by_category = {}
+    for tx in transactions:
+        by_category[tx["category"]] = by_category.get(tx["category"], 0) + tx["amount"]
+
+    categories = [
+        {"name": name, "total": total, "pct": round(total / total_spent * 100)}
+        for name, total in sorted(by_category.items(), key=lambda item: item[1], reverse=True)
+    ]
+
+    stats = {
+        "total_spent": total_spent,
+        "tx_count": len(transactions),
+        "top_category": categories[0]["name"],
+    }
+
+    return render_template(
+        "profile.html",
+        user=user,
+        stats=stats,
+        transactions=transactions,
+        categories=categories,
+    )
 
 
 @app.route("/expenses/add")

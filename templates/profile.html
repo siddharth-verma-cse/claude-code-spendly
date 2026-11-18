@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}Your profile — Spendly{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/profile.css') }}">
+{% endblock %}
+
+{% block content %}
+
+<section class="profile-section">
+    <div class="profile-container">
+
+        {% for category, message in get_flashed_messages(with_categories=true) %}
+        <div class="auth-{{ 'success' if category == 'success' else 'error' }}">{{ message }}</div>
+        {% endfor %}
+
+        <header class="profile-header">
+            <h1 class="profile-title">Your profile</h1>
+            <p class="profile-subtitle">Your account and where your money went this month</p>
+        </header>
+
+        <div class="profile-top">
+
+            <article class="profile-card">
+                <div class="profile-avatar" aria-hidden="true">{{ user.initials }}</div>
+                <div class="profile-identity">
+                    <h2 class="profile-name">{{ user.name }}</h2>
+                    <p class="profile-email">{{ user.email }}</p>
+                    <p class="profile-since">
+                        <i data-lucide="calendar" class="profile-icon-inline" aria-hidden="true"></i>
+                        Member since {{ user.member_since }}
+                    </p>
+                </div>
+            </article>
+
+            <div class="profile-stats">
+                <div class="stat-card">
+                    <span class="stat-label">
+                        <i data-lucide="wallet" class="stat-icon" aria-hidden="true"></i>
+                        Total spent
+                    </span>
+                    <span class="stat-value">{{ stats.total_spent|inr }}</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">
+                        <i data-lucide="receipt" class="stat-icon" aria-hidden="true"></i>
+                        Transactions
+                    </span>
+                    <span class="stat-value">{{ stats.tx_count }}</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">
+                        <i data-lucide="tag" class="stat-icon" aria-hidden="true"></i>
+                        Top category
+                    </span>
+                    <span class="stat-value">{{ stats.top_category }}</span>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="profile-main">
+
+            <section class="tx-card" aria-labelledby="tx-heading">
+                <h2 class="profile-card-title" id="tx-heading">
+                    <i data-lucide="list" class="profile-card-icon" aria-hidden="true"></i>
+                    Transaction history
+                </h2>
+                <div class="tx-table-wrap">
+                    <table class="tx-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Date</th>
+                                <th scope="col">Description</th>
+                                <th scope="col">Category</th>
+                                <th scope="col" class="tx-amount">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for tx in transactions %}
+                            <tr>
+                                <td class="tx-date">{{ tx.date|short_date }}</td>
+                                <td>{{ tx.description }}</td>
+                                <td><span class="badge badge-{{ tx.category|lower }}">{{ tx.category }}</span></td>
+                                <td class="tx-amount">{{ tx.amount|inr }}</td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="4" class="tx-empty">No expenses yet.</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="cat-card" aria-labelledby="cat-heading">
+                <h2 class="profile-card-title" id="cat-heading">
+                    <i data-lucide="pie-chart" class="profile-card-icon" aria-hidden="true"></i>
+                    By category
+                </h2>
+                <ul class="cat-list">
+                    {% for cat in categories %}
+                    <li class="cat-row">
+                        <div class="cat-row-head">
+                            <span class="cat-name">{{ cat.name }}</span>
+                            <span class="cat-total">{{ cat.total|inr }}</span>
+                        </div>
+                        <div class="cat-row-bar">
+                            <progress class="cat-bar" value="{{ cat.pct }}" max="100"
+                                      aria-label="{{ cat.name }}: {{ cat.pct }}% of spending">{{ cat.pct }}%</progress>
+                            <span class="cat-pct">{{ cat.pct }}%</span>
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </section>
+
+        </div>
+
+    </div>
+</section>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://unpkg.com/lucide@0.344.0/dist/umd/lucide.min.js"></script>
+<script>
+    if (window.lucide) {
+        lucide.createIcons();
+    }
+</script>
+{% endblock %}
