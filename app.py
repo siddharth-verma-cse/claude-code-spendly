@@ -1,8 +1,18 @@
-from flask import Flask, render_template
+import os
+import re
+import secrets
+import sqlite3
 
-from database.db import get_db, init_db, seed_db
+from flask import Flask, flash, redirect, render_template, request, url_for
+
+from database.db import create_user, get_db, get_user_by_email, init_db, seed_db
 
 app = Flask(__name__)
+# Set SPENDLY_SECRET_KEY in the environment for stable sessions; the random
+# fallback is fine for dev but invalidates sessions on every restart.
+app.secret_key = os.environ.get("SPENDLY_SECRET_KEY") or secrets.token_hex(32)
+
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 with app.app_context():
     init_db()
@@ -18,9 +28,41 @@ def landing():
     return render_template("landing.html")
 
 
-@app.route("/register")
+@app.route("/register", methods=["GET", "POST"])
 def register():
-    return render_template("register.html")
+    if request.method == "GET":
+        return render_template("register.html")
+
+    name = request.form.get("name", "").strip()
+    email = request.form.get("email", "").strip().lower()
+    password = request.form.get("password", "")
+
+    error = None
+    if not name or len(name) > 100:
+        error = "Please enter your name."
+    elif not EMAIL_RE.match(email):
+        error = "Please enter a valid email address."
+    elif len(password) < 8:
+        error = "Password must be at least 8 characters."
+
+    if error is None:
+        conn = get_db()
+        try:
+            if get_user_by_email(conn, email):
+                error = "An account with this email already exists."
+            else:
+                create_user(conn, name, email, password)
+                conn.commit()
+        except sqlite3.IntegrityError:
+            error = "An account with this email already exists."
+        finally:
+            conn.close()
+
+    if error:
+        return render_template("register.html", error=error, name=name, email=email), 400
+
+    flash("Account created — please sign in.", "success")
+    return redirect(url_for("login"))
 
 
 @app.route("/login")
