@@ -56,6 +56,22 @@ def init_db():
         conn.close()
 
 
+def get_user_by_email(conn, email):
+    """Return the user row for this email, or None. Caller owns the connection."""
+    return conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+
+
+def create_user(conn, name, email, password):
+    """Hash the password and insert a user; returns the new id.
+    Caller owns the connection and must commit.
+    Raises sqlite3.IntegrityError if the email is already taken."""
+    cur = conn.execute(
+        "INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)",
+        (name, email, generate_password_hash(password, method=PASSWORD_HASH_METHOD)),
+    )
+    return cur.lastrowid
+
+
 def seed_db(dev_mode=False):
     """Insert a demo user and sample expenses, only if the users table is empty."""
     conn = get_db()
